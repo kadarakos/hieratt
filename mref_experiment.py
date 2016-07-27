@@ -1,7 +1,8 @@
 import numpy as np
 from model import hieratt_network
 from keras.utils.np_utils import to_categorical
-
+from keras.callbacks import EarlyStopping
+import pickle
 
 mref_model = hieratt_network(100, 10, 20, 5)
 data = np.load('mref.npz')
@@ -28,10 +29,23 @@ X_test /= 255
 
 
 print "Compiling"
+early_stopping = EarlyStopping(monitor='val_loss', patience=5)
+
 mref_model.compile(loss='categorical_crossentropy',
               optimizer='adam',
               metrics=['accuracy'])
 
 print "Training"
-mref_model.fit([X_train, queries_train], y_train, batch_size=128, nb_epoch=100,
-          verbose=1, validation_data=([X_test, queries_test], y_test))
+hist = mref_model.fit([X_train, queries_train], y_train, batch_size=128, nb_epoch=50,
+          verbose=1, validation_data=([X_test, queries_test], y_test), callbacks=[early_stopping])
+
+pickle.dump(hist.history, open("history.pkl", 'w'))
+print "Saving training history, architecture and weights matrices"
+json_string = mref_model.to_json()
+
+open('mref_model_architecture.json', 'w').write(json_string)
+mref_model.save_weights('mref_model_weights.h5')
+
+# NOTE TO MY SELF
+# model = model_from_json(open('mref_model_architecture.json').read())
+# model.load_weights('mref_model_weights.h5')
