@@ -7,7 +7,9 @@ from keras.layers.core import TimeDistributedDense, RepeatVector, Permute, Lambd
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.layers.convolutional import ZeroPadding2D
 from keras.optimizers import SGD
-
+import sys
+sys.path.append( "../deep-learning-models/")
+from vgg19 import VGG19
 
 def repeat_1(x):
     """Wrap keras backend repeat."""
@@ -118,4 +120,36 @@ def hieratt_network(w, query_in_size, query_embed_size, nb_classes):
     model = Model(input=[input_image, input_question], output=probs)
     return model
 
+
+
+def VGG19_hieratt(query_in_size, query_embed_size, nb_classes):
+    """Stack hierarchical attention on pre-trained VGG19.
+    Requires https://github.com/fchollet/deep-learning-models"""
+
+    base_model = VGG19(weights='imagenet')    
+    input_image = base_model.input
+    input_question = Input(shape=(query_in_size,))     # question vector
+    
+    # Model up to 3rd block
+    f_1 = Model(input=img_in, output=base_model.get_layer('block3_pool').output)
+    f_1 = f_1(img_in)
+    f_1 = Reshape((256, 28*28))(f_1)
+    f_1 = Permute((2,1))(f_1)
+
+
+    q_1   = Dense(query_embed_size, activation='relu')(input_question)  # Encode question
+    # Add question embedding to each feature column
+    q_1   = RepeatVector(28*28)(q_1)
+    q_f   = merge([f_1, q_1], 'concat')
+    # Estimate and apply attention per feature
+    att_1 = TimeDistributedDense(1, activation="sigmoid")(q_f)
+    att_1 = Lambda(repeat_1, output_shape=(28*28, 256))(att_1)
+    att_1 = merge([f_1, att_1], 'mul')
+    # Reshape to the original feature map from previous layer
+    att_1 = Permute((2,1))(att_1)
+    f_1_att = Reshape((256, 28, 28))(att_1)
+
+
+    model = Model(input=[img_in, input_question], output=f_1_att)
+    print model.summary()
 
