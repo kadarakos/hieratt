@@ -1,2 +1,4 @@
 *.npz
 *.pyc
+*.ipynb
+*.dat
