@@ -28,7 +28,7 @@ def modify(img, color, scale):
 
 def iter_MREF(data, labels, num_samples):
     # Initialize empty data set, queries and targets
-    dataset = np.empty((num_samples, 100, 100, 3)).astype("uint8")
+    dataset = np.empty((num_samples, args.size, args.size, 3)).astype("uint8")
     queries = np.empty(num_samples).astype("int")
     targets = np.empty(num_samples).astype("str")
     colors = ["red", "green", "blue", "yellow", "white"]
@@ -36,7 +36,7 @@ def iter_MREF(data, labels, num_samples):
     for i in range(num_samples):
         print i, '\r',
         # Initialize empty canvas
-        canvas = np.zeros((100,100, 3)).astype("uint8")
+        canvas = np.zeros((args.size,args.size, 3)).astype("uint8")
         used_labels = []
         used_colors = []
         nums = 0
@@ -81,6 +81,7 @@ if __name__ == "__main__":
     parser.add_argument("filename")
     parser.add_argument("--num_train", type=int, default=60000)
     parser.add_argument("--num_test", type=int, default=10000)
+    parser.add_argument("--size", type=int, default=100)
     args = parser.parse_args()
 
     (X_train, y_train), (X_test, y_test) = mnist.load_data()

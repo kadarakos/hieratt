@@ -3,9 +3,32 @@ from model import hieratt_network
 from keras.utils.np_utils import to_categorical
 from keras.callbacks import EarlyStopping
 import pickle
+import sys
+sys.path.append( "../deep-learning-models/")
+from vgg19_hiearatt import VGG19_hieratt
+from keras.layers import Dense
+from keras.models import Model
 
-mref_model = hieratt_network(100, 10, 20, 5)
-data = np.load('mref.npz')
+MODEL = 'vgg'
+
+if MODEL == 'vgg':
+    base_model = VGG19_hieratt(include_top=True, 
+                               query_in_size=10, 
+                               query_embed_size=20)
+    x = base_model.output
+    predictions = Dense(5, activation='softmax', name='aclassifier')(x)
+    mref_model = Model(input=base_model.input, output=predictions)
+
+    for layer in mref_model.layers:
+        if  not layer.name[0] == 'a':
+            layer.trainable = False
+    data = np.load('mref_vgg.npz')
+
+
+else:
+    mref_model = hieratt_network(100, 10, 20, 5)
+    data = np.load('mref.npz')
+
 X_train = data['train_data']
 q_train = data['train_queries']
 y_train = data['train_targets']
