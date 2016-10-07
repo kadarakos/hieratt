@@ -13,10 +13,11 @@ The MREF experiment can be reproduced by running
 ```
 
 to create an MREF data set and running 
-
-```bash
+```
+bash
   python mref_experiment.py
 ```
+
 The results are about the same (sometimes a bit better sometimes a bit worse) as in the paper.
 
 ![alt tag](mreftrain.png)
