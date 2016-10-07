@@ -59,7 +59,7 @@ mref_model.compile(loss='categorical_crossentropy',
               metrics=['accuracy'])
 
 print "Training"
-hist = mref_model.fit([X_train, queries_train], y_train, batch_size=128, nb_epoch=50,
+hist = mref_model.fit([X_train, queries_train], y_train, batch_size=12, nb_epoch=50,
           verbose=1, validation_data=([X_test, queries_test], y_test), callbacks=[early_stopping])
 
 pickle.dump(hist.history, open("history.pkl", 'w'))

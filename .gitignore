@@ -3,3 +3,6 @@
 *.ipynb
 *.dat
 *.pkl
+*.txt
+*.json
+*.h5
