@@ -1,61 +1,89 @@
+"""This module prepares the Visual Genome data set for attribute prediction."""
+
 import json
 import os
 from sklearn.feature_extraction.text import CountVectorizer
 from keras.preprocessing.text import Tokenizer
 import numpy as np
 import pickle
+from PIL import Image
+import h5py
+
+ATT_path = "/roaming/public_datasets/VisualGenome/attributes/"
+IMG_path = "/roaming/public_datasets/VisualGenome/images/"
+DATA = "attributes_v2.json"
+img_path = [IMG_path+"VG_100K/", IMG_path+"VG_100K_2/"]
+N = 500                    # Minimum frequency of query and target labels
+target_size = (224, 224)   # Size of images
+
+if DATA == "attributes_v2.json":
+    names = 'synsets'
+    imgname = 'image_id'
+else:
+    names = "object_names"
+    imgname = "id"
+
 
 def data_filter(sample):
     """Filter attributes and objects that are not in the most common."""
-    # print sample
-    # print len(sample['attributes']), len(sample['names'])
     new_sample = sample.copy()
     atts = filter(lambda x: x in common_att, sample['attributes'])
-    objs = filter(lambda x: x in common_obj, sample['object_names'])
-    # print len(atts), len(objs)
+    objs = filter(lambda x: x in common_obj, sample[names])
     if atts and objs:
         new_sample['attributes'] = atts
-        new_sample['object_names'] = objs
+        new_sample[names] = objs
         return new_sample
 
-print  "Loading data set"
 
-VG_path = "/roaming/public_datasets/VisualGenome/attributes/"
-DATA = "attributes_v1.json"
-data = json.load(open(VG_path+DATA))
+def load_image(id, target_size):
+    """Load image from path and return HxWx3 numpy array."""
+    id = str(id)
+    try:
+        path = img_path[0] + str(id) + '.jpg'
+        img = Image.open(path)
+        img = img.resize((target_size[1], target_size[0]))
+        img = np.asarray(img.getdata()).reshape((target_size[0],
+                                                 target_size[1],
+                                                 3))
+    except:
+        path = img_path[1] + str(id) + '.jpg'
+        img = Image.open(path)
+        img = img.resize((target_size[1], target_size[0]))
+        img = np.asarray(img.getdata()).reshape((target_size[0],
+                                                 target_size[1],
+                                                 3))
+    return np.array(img).astype("uint8")
+
+print "Loading data set"
+data = json.load(open(ATT_path + DATA))
 
 print "Computing attribute and object frequencies"
-
 # Count the occurrences of attributes and objects in the data set
 att_freq = {}
 obj_freq = {}
 for i in data:
     for j in i['attributes']:
-        if j.has_key('attributes'):
+        if 'attributes' in j:
             for att in j['attributes']:
                 if att in att_freq:
                     att_freq[att] += 1
                 else:
                     att_freq[att] = 1
-            for obj in j['object_names']:
+            for obj in j[names]:
                 if obj in obj_freq:
                     obj_freq[obj] += 1
                 else:
                     obj_freq[obj] = 1
 
-
-# The paper says We used 488 object classes and 274 attribute classes that appear more than 100 times.
-# I can't replicate this, because there are more than 1000 obj and att classes that appear more than 100 times
-# even with the old version, so i dont know what they mean
-# I just choose top 300 attributes and 500 objects
-
+# Top most frequent classes
 # num_att = 300
 # num_obj = 500
 # common_att = dict(sorted(att_freq.iteritems(), key=lambda x: x[1], reverse=True)[:num_att])
 # common_obj = dict(sorted(obj_freq.iteritems(), key=lambda x: x[1], reverse=True)[:num_obj])
 
-common_att = dict(filter(lambda x: x[1] > 500, att_freq.iteritems()))
-common_obj = dict(filter(lambda x: x[1] > 500, obj_freq.iteritems()))
+# Classes that appear at least N times
+common_att = dict(filter(lambda x: x[1] >= N, att_freq.iteritems()))
+common_obj = dict(filter(lambda x: x[1] >= N, obj_freq.iteritems()))
 
 data_path = "/home/akadar/hieratt/attributes_data/"
 if not os.path.exists(data_path):
@@ -70,23 +98,26 @@ print len(data)
 for i in range(0, len(data)):
     print i, '\r',
     sample = data[i]['attributes']
-    imgid = data[i]['id']
+    imgid = data[i][imgname]
     for j in sample:
-        if j.has_key('attributes'):
+        if 'attributes' in j:
             filtered = data_filter(j)
             if filtered:
-                att, obj = filtered['attributes'], filtered['object_names']
+                att, obj = filtered['attributes'], filtered[names]
                 imgid_file.write(str(imgid) + "\n")
                 obj_file.write(' '.join(obj) + "\n")
-                att_file.write(' '.join(att ) + "\n")
-
+                att_file.write(' '.join(att) + "\n")
 
 
 path = '/home/akadar/hieratt/attributes_data/'
-imgids = open(path+"imgids.txt").read().split('\n')
+imgids = map(int, open(path+"imgids.txt").read().split('\n')[:-1])
 atts = open(path+"attributes.txt").read().split('\n')
 objs = open(path+"objects.txt").read().split('\n')
-objs = map(lambda x: x.replace(' ', '').replace('-', ''), objs)
+
+if names == "synsets":
+    objs = map(lambda x: x.replace('.', ''), objs)
+else:
+    objs = map(lambda x: x.replace(' ', '').replace('-', ''), objs)
 
 print "Computing indicator vectors for attirbutes (target)"
 attribute_vectorizer = CountVectorizer(binary=True)
@@ -97,12 +128,28 @@ print "Converting object labels to indices"
 object_tokenizer.fit_on_texts(objs)
 O = object_tokenizer.texts_to_sequences(objs)
 
+print "Number of Classes that appear more than", N, "times"
+print "---------------------------------------"
+print "Object classes:", len(object_tokenizer.word_counts)
+print "Number of attribute classes:", len(attribute_vectorizer.vocabulary_)
+print
 print "Writing attribute vectors to 'attributes.npy'"
 np.save(path+"attributes", A)
 
 print "Writing object indices to  'objects.pkl'"
 pickle.dump(O, open(path+"objects.pkl", 'w'))
 
-print "Writing object encoder (keras.preprocessing.text.Tokenizer) to 'object_tokenizer'.pkl"
+print """Writing object encoder (keras.preprocessing.text.Tokenizer)
+         to 'object_tokenizer'.pkl"""
 pickle.dump(object_tokenizer, open(path+"object_tokenizer.pkl", "w"))
 
+imgids = sorted(set(imgids))
+f = h5py.File(path+'attributes.h5', 'w')
+dset = f.create_dataset("images",
+                        (len(imgids), target_size[0], target_size[1], 3),
+                        dtype="uint8")
+
+print "Writing", len(imgids), "images to hdf5 database with size", target_size
+for i, j in enumerate(imgids):
+    print i, '\r',
+    dset[i] = load_image(j, target_size)
