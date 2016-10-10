@@ -36,11 +36,15 @@ def data_filter(sample):
 
 
 def load_image(id, target_size):
-    """Load image from path and return HxWx3 numpy array."""
+    """Load image from path and return HxWx3 numpy array.
+       Skip gray-scale.
+    """
     id = str(id)
     try:
         path = img_path[0] + str(id) + '.jpg'
         img = Image.open(path)
+	if img.mode == "L":
+	    return
         img = img.resize((target_size[1], target_size[0]))
         img = np.asarray(img.getdata()).reshape((target_size[0],
                                                  target_size[1],
@@ -48,6 +52,8 @@ def load_image(id, target_size):
     except:
         path = img_path[1] + str(id) + '.jpg'
         img = Image.open(path)
+        if img.mode == "L":
+  	     return
         img = img.resize((target_size[1], target_size[0]))
         img = np.asarray(img.getdata()).reshape((target_size[0],
                                                  target_size[1],
@@ -131,7 +137,7 @@ O = object_tokenizer.texts_to_sequences(objs)
 print "Number of Classes that appear more than", N, "times"
 print "---------------------------------------"
 print "Object classes:", len(object_tokenizer.word_counts)
-print "Number of attribute classes:", len(attribute_vectorizer.vocabulary_)
+print "Attribute classes:", len(attribute_vectorizer.vocabulary_)
 print
 print "Writing attribute vectors to 'attributes.npy'"
 np.save(path+"attributes", A)
@@ -148,8 +154,13 @@ f = h5py.File(path+'attributes.h5', 'w')
 dset = f.create_dataset("images",
                         (len(imgids), target_size[0], target_size[1], 3),
                         dtype="uint8")
+imgidset = f.create_dataset("imgids", (len(imgids), 1), dtype="int32") 
 
 print "Writing", len(imgids), "images to hdf5 database with size", target_size
 for i, j in enumerate(imgids):
-    print i, '\r',
-    dset[i] = load_image(j, target_size)
+    print i, '\r'
+    a = load_image(j, target_size)
+    if a != None:
+	print "ye"
+        dset[i] = a
+        imgidset[i] = j
