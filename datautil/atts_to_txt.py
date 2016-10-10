@@ -1,5 +1,9 @@
 import json
 import os
+from sklearn.feature_extraction.text import CountVectorizer
+from keras.preprocessing.text import Tokenizer
+import numpy as np
+import pickle
 
 def data_filter(sample):
     """Filter attributes and objects that are not in the most common."""
@@ -53,11 +57,11 @@ for i in data:
 common_att = dict(filter(lambda x: x[1] > 500, att_freq.iteritems()))
 common_obj = dict(filter(lambda x: x[1] > 500, obj_freq.iteritems()))
 
-data_path = "./attributes_data/"
+data_path = "/home/akadar/hieratt/attributes_data/"
 if not os.path.exists(data_path):
     os.makedirs(data_path)
 
-print "Creating data strings"
+print "Writing samples to imigits.txt, objects.txt, attributes.txt"
 imgid_file = open(data_path+"imgids.txt", "wb")
 obj_file = open(data_path+"objects.txt", "wb")
 att_file = open(data_path+"attributes.txt", "wb")
@@ -75,4 +79,30 @@ for i in range(0, len(data)):
                 imgid_file.write(str(imgid) + "\n")
                 obj_file.write(' '.join(obj) + "\n")
                 att_file.write(' '.join(att ) + "\n")
+
+
+
+path = '/home/akadar/hieratt/attributes_data/'
+imgids = open(path+"imgids.txt").read().split('\n')
+atts = open(path+"attributes.txt").read().split('\n')
+objs = open(path+"objects.txt").read().split('\n')
+objs = map(lambda x: x.replace(' ', '').replace('-', ''), objs)
+
+print "Computing indicator vectors for attirbutes (target)"
+attribute_vectorizer = CountVectorizer(binary=True)
+object_tokenizer = Tokenizer()
+A = attribute_vectorizer.fit_transform(atts)
+
+print "Converting object labels to indices"
+object_tokenizer.fit_on_texts(objs)
+O = object_tokenizer.texts_to_sequences(objs)
+
+print "Writing attribute vectors to 'attributes.npy'"
+np.save(path+"attributes", A)
+
+print "Writing object indices to  'objects.pkl'"
+pickle.dump(O, open(path+"objects.pkl", 'w'))
+
+print "Writing object encoder (keras.preprocessing.text.Tokenizer) to 'object_tokenizer'.pkl"
+pickle.dump(object_tokenizer, open(path+"object_tokenizer.pkl", "w"))
 
