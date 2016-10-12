@@ -8,7 +8,7 @@ import numpy as np
 import pickle
 from PIL import Image
 import h5py
-from collections import defaultdict
+from utils import list_duplicates
 
 
 ATT_path = "/roaming/public_datasets/VisualGenome/attributes/"
@@ -43,40 +43,39 @@ def load_image(id, target_size):
     """
     Load image from path and return HxWx3 numpy array.
 
-    Skip gray-scale.
+    Tile gray-scale.
     """
     id = str(id)
     try:
         path = img_path[0] + str(id) + '.jpg'
         img = Image.open(path)
-        if img.mode == "L":
-            return
         img = img.resize((target_size[1], target_size[0]))
-        img = np.asarray(img.getdata()).reshape((target_size[0],
-                                                 target_size[1],
-                                                 3))
+        if img.mode == "L":
+            img = np.asarray(img.getdata())
+            img = img.reshape((target_size[0], target_size[1], 1))
+            img = np.tile(img, (1, 1, 3))
+        else:
+            img = np.asarray(img.getdata()).reshape((target_size[0],
+                                                     target_size[1],
+                                                     3))
     except:
         path = img_path[1] + str(id) + '.jpg'
         img = Image.open(path)
-        if img.mode == "L":
-            return
         img = img.resize((target_size[1], target_size[0]))
-        img = np.asarray(img.getdata()).reshape((target_size[0],
-                                                 target_size[1],
-                                                 3))
+
+        if img.mode == "L":
+            img = np.asarray(img.getdata())
+            img = img.reshape((target_size[0], target_size[1], 1))
+            img = np.tile(img, (1, 1, 3))
+        else:
+            img = np.asarray(img.getdata()).reshape((target_size[0],
+                                                     target_size[1],
+                                                     3))
     return np.array(img).astype("uint8")
-
-
-def list_duplicates(seq):
-    """Given the imgids list, return the ranges of the same elements."""
-    tally = defaultdict(list)
-    for i, item in enumerate(seq):
-        tally[item].append(i)
-    return ((key, locs) for key, locs in tally.items())
-
 
 print "Loading data set"
 data = json.load(open(ATT_path + DATA))
+data = sorted(data, key=lambda x: x['image_id'])  # make things easier later on
 
 print "Computing attribute and object frequencies"
 # Count the occurrences of attributes and objects in the data set
@@ -184,7 +183,9 @@ duplicates = sorted(list_duplicates(imgids))
 f = h5py.File(path+'attributes.h5', 'w')  # HDF5 data base for the whole set
 # data set for the pre-processed images (num images x H x W x 3)
 dset = f.create_dataset("images",
-                        (len(imgids_unique), target_size[0], target_size[1], 3),
+                        (len(imgids_unique),
+                         target_size[0],
+                         target_size[1], 3),
                         dtype="uint8")
 # data set for the image ids (num images x 1)
 imgidset = f.create_dataset("imgids", (len(imgids_unique), 1), dtype="int32")
@@ -209,7 +210,6 @@ print pointers.shape
 for i, j in enumerate(imgids_unique):
     print i, '\r'
     a = load_image(j, target_size)
-    if a != None:
-        dset[i] = a
-        imgidset[i] = j
-        pointers[i] = [min(duplicates[i][1]), max(duplicates[i][1])]
+    dset[i] = a
+    imgidset[i] = j
+    pointers[i] = [min(duplicates[i][1]), max(duplicates[i][1])]
